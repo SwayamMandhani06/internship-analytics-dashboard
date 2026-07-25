@@ -319,6 +319,7 @@ router.get("/analytics/credits", async (req: Request, res: Response, next: NextF
         sheetReportedTotalCredits: s.sheetReportedTotalCredits,
         discrepancy,
         needsReview,
+        internships: s.internships,
       };
     });
 

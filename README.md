@@ -1,6 +1,8 @@
 # Internship Analytics Dashboard
 
-A full-stack analytics dashboard that reads student internship data from Google Sheets and provides real-time KPI visualizations, student-level drill-downs, company rankings, credit auditing, and exportable reports. Built with **React + TypeScript** on the frontend and **Express + Google Sheets API** on the backend.
+A full-stack analytics dashboard that reads student internship data from Google Sheets, enriches and audits credit calculations, and provides a persistent **Supabase-backed Faculty Review & Approval Workflow**. Features real-time KPI visualizations, student-level drill-downs, company & certification analytics, cross-semester split-internship auto-merging, inline review controls, bulk approval actions, and exportable Excel/PDF reports.
+
+Built with **React 19 + TypeScript + Tailwind CSS** on the frontend and **Express + Google Sheets API + Supabase Postgres** on the backend.
 
 ---
 
@@ -8,14 +10,14 @@ A full-stack analytics dashboard that reads student internship data from Google 
 
 - [Features](#features)
 - [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
+- [Architecture & Data Pipeline](#architecture--data-pipeline)
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Google Service Account Setup](#google-service-account-setup)
-  - [Installation](#installation)
-  - [Running in Development](#running-in-development)
-- [Environment Variables](#environment-variables)
+  - [Supabase Setup](#supabase-setup)
+  - [Installation & Local Running](#installation--local-running)
+- [Environment Variables & Deployment](#environment-variables--deployment)
 - [Pages & Functionality](#pages--functionality)
   - [Dashboard Overview](#1-dashboard-overview)
   - [Student Directory](#2-student-directory)
@@ -24,377 +26,224 @@ A full-stack analytics dashboard that reads student internship data from Google 
   - [Reports & Export Center](#5-reports--export-center)
   - [Settings & Batch Configuration](#6-settings--batch-configuration)
 - [API Reference](#api-reference)
-- [Credit Calculation Rules](#credit-calculation-rules)
-- [Data Pipeline](#data-pipeline)
+- [Credit Calculation & Review Policy](#credit-calculation--review-policy)
 - [License](#license)
 
 ---
 
 ## Features
 
-- **Real-time Google Sheets Integration** — Fetches live student internship data from Google Sheets via a service account with server-side caching (5-minute TTL)
-- **Dashboard KPIs** — At-a-glance metrics: total students, internship participation, unique companies, credit totals, averages, and data quality flags
-- **Division Comparison** — Side-by-side breakdown of all 4 divisions (Div-A through Div-D) with progress bars and per-division credit averages
-- **Student Directory** — Searchable, sortable, paginated data table with expandable rows showing per-student internship details across 7 semesters
-- **Company Rankings** — Interactive horizontal bar chart (Recharts) and ranked data table of companies by student participation with division breakdown
-- **Credit Auditing** — Automated credit calculation from internship duration, credit distribution charts, and discrepancy detection between calculated and sheet-reported values
-- **Reports & Export** — One-click generation of 3 report types (Student List, Credit Summary, Company Participation) in both Excel (`.xlsx`) and PDF formats
-- **Data Quality Tracking** — Automatic flagging of entries needing manual review (unparseable durations, dates, certification-style entries)
-- **Dark Mode** — Full dark/light theme toggle with system preference detection and `localStorage` persistence
-- **Batch Filtering** — Global batch selector (e.g., 2023–2027, 2024–2028) with division-level filtering across all pages
-- **Responsive Design** — Mobile-friendly layout with collapsible sidebar navigation
-- **Clock Drift Correction** — Automatic detection and correction of system clock drift for Google OAuth JWT authentication
+- **Google Sheets Live Sync** — Reads student internship data across 4 division tabs (`Div-A` .. `Div-D`) with a server-side 5-minute in-memory cache and clock-drift-corrected OAuth JWT auth.
+- **Supabase Persistent Overrides Layer** — Faculty decisions (`approved`, `declined`, `pending`), custom credit overrides, classification changes, and split-merge decisions are stored in Supabase (`review_overrides`) and merged fresh on every request over the raw Google Sheets data.
+- **Inline Faculty Review Workflow** — Embedded directly in the **Credits** and **Student Directory** pages with inline review panels, reason diagnostics, reclassification controls (`company` vs `certification`), and continuous split-internship handling.
+- **Bulk Approval Actions** — One-click bulk approval/decline for visible flagged entries scoped strictly by batch and division, with confirmation dialogs.
+- **Cross-Semester Split Internship Detection** — Automatically detects continuous internships spanning semester boundaries (e.g. TY Sem VI to B.Tech Sem VII), calculates combined dates/durations using `MAX(duration)`, and assigns credits once without double-counting. Faculty can explicitly confirm or reject merges (`reject_merge`).
+- **Internship vs Certification Classifier** — Heuristic classification engine distinguishing corporate employer placements from training/course programs (`AICTE`, `NPTEL`, `Masterclass`, etc.), with faculty override support.
+- **Reports & Export Center** — Client-side generation of Excel (`.xlsx`) and PDF reports for Student Lists, Credit Audit Summaries, and Company Participation. Exports automatically use the final post-override `totalCreditsCalculated`.
+- **Data Quality Banners & Fallbacks** — Automatic top-level `overridesApplied: false` status signalling and UI warning banners when Supabase is temporarily unreachable.
+- **Theme & Scope Filtering** — Full dark/light mode toggle with system preference auto-detection, global batch selection, and division-level filtering across all pages.
 
 ---
 
 ## Tech Stack
 
 ### Frontend
-
-| Technology           | Purpose                          |
-| -------------------- | -------------------------------- |
-| React 19             | UI framework                     |
-| TypeScript 6         | Type safety                      |
-| Vite 8               | Build tool & dev server          |
-| Tailwind CSS 4       | Utility-first styling            |
-| React Router DOM 7   | Client-side routing              |
-| Recharts 3           | Data visualization (bar charts)  |
-| Axios                | HTTP client for API requests     |
-| Lucide React         | Icon library                     |
-| date-fns             | Date formatting utilities        |
-| jsPDF + autoTable    | Client-side PDF report generation|
-| xlsx (SheetJS)       | Client-side Excel export         |
-| clsx                 | Conditional CSS class merging    |
+- **React 19** + **TypeScript 6** + **Vite 8**
+- **Tailwind CSS 4** (utility-first styling with dark mode)
+- **React Router DOM 7** (SPA routing)
+- **Recharts 3** (interactive bar charts)
+- **Axios** (shared client instance via `src/lib/api.ts`)
+- **jsPDF + autoTable** & **xlsx (SheetJS)** (PDF/Excel generation)
+- **Lucide React** (icons)
 
 ### Backend
-
-| Technology           | Purpose                              |
-| -------------------- | ------------------------------------ |
-| Express 4            | REST API server                      |
-| TypeScript 5         | Type safety                          |
-| Google APIs (v173)   | Google Sheets API v4 integration     |
-| google-auth-library  | JWT/Service Account authentication   |
-| CORS                 | Cross-origin resource sharing        |
-| dotenv               | Environment variable management      |
-| Vitest               | Unit testing framework               |
-| Supertest            | HTTP assertion testing               |
-| ts-node-dev          | TypeScript dev server with hot reload|
+- **Express 4** + **TypeScript 5**
+- **@supabase/supabase-js** (Supabase Postgres client)
+- **googleapis (v173)** & **google-auth-library** (Google Sheets API v4)
+- **dotenv** (environment variables with CommonJS sync loading)
+- **Vitest + Supertest** (unit and HTTP integration testing suite with 113+ tests)
 
 ---
 
-## Architecture
+## Architecture & Data Pipeline
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Browser (React SPA)               │
-│  ┌───────────┬────────────┬──────────┬───────────┐  │
-│  │ Dashboard │  Students  │Companies │  Credits  │  │
-│  │  Reports  │  Settings  │          │           │  │
-│  └─────┬─────┴─────┬──────┴────┬─────┴─────┬─────┘  │
-│        │  Axios    │           │           │         │
-│        └───────────┴─────┬─────┴───────────┘         │
-└──────────────────────────┼───────────────────────────┘
-                           │ /api/*
-                           ▼
-┌──────────────────────────────────────────────────────┐
-│              Express Backend (Port 3001)             │
-│  ┌──────────┬──────────┬───────────┬──────────────┐  │
-│  │ /health  │/students │/analytics │  /config     │  │
-│  └──────────┴────┬─────┴─────┬─────┴──────────────┘  │
-│                  │           │                        │
-│          ┌───────┴───────────┴───────┐                │
-│          │  Student Enrichment Svc   │                │
-│          │  ├─ Date Parser           │                │
-│          │  ├─ Duration Parser       │                │
-│          │  ├─ Status Calculator     │                │
-│          │  └─ Credit Rules Engine   │                │
-│          └───────────┬───────────────┘                │
-│                      │                                │
-│          ┌───────────┴───────────────┐                │
-│          │   Sheets Service          │                │
-│          │   (Cache: 5min TTL)       │                │
-│          └───────────┬───────────────┘                │
-└──────────────────────┼───────────────────────────────┘
-                       │ Google Sheets API v4
-                       ▼
-              ┌─────────────────┐
-              │  Google Sheets  │
-              │  (Spreadsheet)  │
-              └─────────────────┘
+                                  ┌────────────────────────────────┐
+                                  │      Google Sheets (Read-Only)  │
+                                  │  (Raw student records A..D)    │
+                                  └───────────────┬────────────────┘
+                                                  │ batchGet
+                                                  ▼
+┌───────────────────────┐         ┌────────────────────────────────┐
+│   Supabase Postgres   │         │     Sheets Service (Cache)     │
+│   (review_overrides)  │         └───────────────┬────────────────┘
+└───────────┬───────────┘                         │
+            │ fetch fresh                         ▼
+            │ (never cached)      ┌────────────────────────────────┐
+            └────────────────────►│   Student Enrichment Pipeline  │
+                                  │  - Date & Duration Parsers     │
+                                  │  - Split-Internship Auto-Merge │
+                                  │  - Classification Engine       │
+                                  │  - Credit Rules Engine         │
+                                  │  - Apply Supabase Overrides    │
+                                  └───────────────┬────────────────┘
+                                                  │
+                                                  ▼
+                                  ┌────────────────────────────────┐
+                                  │    Express REST API (/api/*)   │
+                                  └───────────────┬────────────────┘
+                                                  │ JSON
+                                                  ▼
+                                  ┌────────────────────────────────┐
+                                  │     React Frontend (Vite)      │
+                                  │  Dashboard / Credits / Directory│
+                                  │  Reports (PDF/Excel) / Settings│
+                                  └────────────────────────────────┘
 ```
 
 ---
 
-## Project Structure
+## Environment Variables & Deployment
 
-```
-internship-analytics-dashboard/
-├── package.json                 # Monorepo root (npm workspaces)
-├── backend/
-│   ├── package.json
-│   ├── .env                     # Environment variables
-│   ├── tsconfig.json
-│   ├── credentials/
-│   │   └── service-account.json # Google service account key (gitignored)
-│   └── src/
-│       ├── index.ts             # Express app entry point
-│       ├── integrationTest.ts   # End-to-end integration tests
-│       ├── config/
-│       │   ├── batches.ts       # Batch → Spreadsheet ID mapping
-│       │   └── divisions.ts     # Division constants (Div-A..D)
-│       ├── routes/
-│       │   ├── index.ts         # Route registration
-│       │   ├── health.ts        # GET /api/health
-│       │   ├── students.ts      # GET /api/students
-│       │   ├── analytics.ts     # GET /api/analytics/*
-│       │   ├── config.ts        # GET /api/config/batches
-│       │   └── __tests__/       # Route-level tests
-│       ├── services/
-│       │   ├── sheetsService.ts          # Google Sheets API client + cache
-│       │   ├── studentEnrichmentService.ts # Raw → enriched data transform
-│       │   ├── statusCalculator.ts       # Internship status derivation
-│       │   ├── creditRules.ts            # Credit calculation policy
-│       │   └── __tests__/                # Service-level tests
-│       └── utils/
-│           ├── dateParser.ts     # Multi-format date parsing
-│           ├── durationParser.ts # Duration string → months conversion
-│           └── __tests__/        # Utility tests
-│
-└── frontend/
-    ├── package.json
-    ├── vite.config.ts            # Vite config + API proxy
-    ├── tsconfig.json
-    ├── index.html
-    └── src/
-        ├── main.tsx              # React entry point
-        ├── App.tsx               # Route definitions
-        ├── index.css             # Global styles + Tailwind
-        ├── context/
-        │   ├── FilterContext.tsx  # Global batch/division filter state
-        │   └── ThemeContext.tsx   # Dark/light mode state
-        ├── layouts/
-        │   └── AppLayout.tsx     # Sidebar + topbar shell layout
-        ├── components/
-        │   ├── DataTable.tsx     # Reusable sortable/searchable/paginated table
-        │   ├── KPICard.tsx       # Metric display card component
-        │   ├── Sidebar.tsx       # Navigation sidebar
-        │   └── Topbar.tsx        # Top bar with batch selector & theme toggle
-        └── pages/
-            ├── DashboardPage.tsx  # KPI overview + division comparison
-            ├── StudentsPage.tsx   # Student directory with expandable rows
-            ├── CompaniesPage.tsx  # Company bar chart + ranking table
-            ├── CreditsPage.tsx    # Credit distribution + audit table
-            ├── ReportsPage.tsx    # Export center (Excel + PDF)
-            └── SettingsPage.tsx   # Batch config, cache refresh, data health
-```
+### Backend `.env` Configuration (`backend/.env`)
+
+| Variable | Type | Description | Example / Default |
+|---|---|---|---|
+| `PORT` | number | Backend server port | `3001` |
+| `FRONTEND_ORIGIN` | string | Allowed CORS origin | `http://localhost:5173` |
+| `GOOGLE_SERVICE_ACCOUNT_KEY_PATH` | string | Local path to Google service account key file (Development) | `./credentials/service-account.json` |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | string | Minified JSON key string (Production / Render) | `{"type":"service_account",...}` |
+| `SUPABASE_URL` | string | Supabase project URL | `https://your-project.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | string | Supabase Service Role secret key | `your-service-role-key` |
+
+### Cloud Deployment (e.g. Render / Railway / Vercel)
+When deploying the backend to Render or similar cloud hosts, ensure all **3 production secrets** are added in the environment configuration:
+1. `GOOGLE_SERVICE_ACCOUNT_KEY` — full single-line minified service account JSON.
+2. `SUPABASE_URL` — your Supabase project HTTPS endpoint.
+3. `SUPABASE_SERVICE_ROLE_KEY` — your Supabase service role API key.
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
+- Node.js ≥ 18
+- npm ≥ 9
+- Google Cloud Service Account with Google Sheets API enabled & Viewer access to spreadsheet tabs
+- Supabase Postgres instance with table `review_overrides`
 
-- **Node.js** ≥ 18
-- **npm** ≥ 9
-- A **Google Cloud** project with the Google Sheets API enabled
-- A **Google service account** with read access to the target spreadsheet(s)
-
-### Google Service Account Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) and create or select a project.
-2. Enable the **Google Sheets API** under APIs & Services.
-3. Create a **Service Account** under IAM & Admin → Service Accounts.
-4. Download the JSON key file for the service account.
-5. Place the key file at `backend/credentials/service-account.json`.
-6. Share your Google Sheets spreadsheet with the service account's email address (with **Viewer** access).
-
-### Installation
-
-```bash
-# Clone the repository
-git clone <repository-url>
-cd internship-analytics-dashboard
-
-# Install all dependencies (root + backend + frontend via workspaces)
-npm install
+### Supabase Setup
+Create the `review_overrides` table in Supabase Table Editor:
+```sql
+CREATE TABLE public.review_overrides (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  batch_id text NOT NULL,
+  division text NOT NULL,
+  prn text NOT NULL,
+  semester_label text NOT NULL,
+  sibling_semester_label text,
+  internship_name_snapshot text,
+  decision text CHECK (decision IN ('approved', 'declined', 'pending')),
+  classification text CHECK (classification IN ('company', 'certification')),
+  merge_decision text CHECK (merge_decision IN ('confirm_merge', 'reject_merge')),
+  override_credits numeric,
+  reviewed_by text,
+  note text,
+  reviewed_at timestamptz DEFAULT now(),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT review_overrides_unique UNIQUE (batch_id, division, prn, semester_label)
+);
 ```
 
-### Running in Development
+### Installation & Local Running
 
 ```bash
-# Start both backend and frontend concurrently
+# Clone repository and install dependencies
+git clone https://github.com/SwayamMandhani06/internship-analytics-dashboard.git
+cd internship-analytics-dashboard
+npm install
+
+# Start both backend (3001) and frontend (5173) concurrently
 npm run dev
 
-# Or start them individually:
-npm run dev:backend    # Express server → http://localhost:3001
-npm run dev:frontend   # Vite dev server → http://localhost:5173
-```
-
-The Vite dev server proxies all `/api/*` requests to the Express backend on port 3001.
-
-### Running Tests
-
-```bash
-# Run backend unit tests
+# Run unit & integration test suite
 cd backend
 npm test
 ```
 
 ---
 
-## Environment Variables
-
-Create a `.env` file in the `backend/` directory:
-
-| Variable                           | Default                                     | Description                                    |
-| ---------------------------------- | ------------------------------------------- | ---------------------------------------------- |
-| `PORT`                             | `3001`                                      | Backend server port                            |
-| `FRONTEND_ORIGIN`                  | `http://localhost:5173`                      | Allowed CORS origin for the frontend           |
-| `GOOGLE_SERVICE_ACCOUNT_KEY_PATH`  | `./credentials/service-account.json`         | Path to the Google service account JSON key    |
-
----
-
 ## Pages & Functionality
 
 ### 1. Dashboard Overview
-
-The main landing page displaying high-level KPI cards:
-
-| KPI                              | Description                                            |
-| -------------------------------- | ------------------------------------------------------ |
-| Total Students                   | Count of all students in the selected batch/division   |
-| Students With Internship         | Students with at least one internship entry            |
-| Students Without Internship      | Students with zero internship entries                  |
-| Total Unique Companies           | Distinct company names (case-insensitive)              |
-| Total Credits Calculated         | Sum of all auto-calculated credits                     |
-| Average Credits per Student      | Mean calculated credits per student                    |
-| Total Internship Entries         | Total number of individual internship records          |
-| Entries Needing Review           | Entries flagged for manual review (expandable breakdown)|
-
-When viewing "All Divisions", a **Division Comparison Breakdown** section shows per-division cards with student counts, average credits, and progress bars.
+- High-level KPIs: Total Students, Participation %, Companies Count, Total Post-Override Credits, Averages, and Data Quality Review Flags.
+- Per-division comparison breakdown cards across `Div-A` through `Div-D`.
+- Offline warning banner when Supabase override sync is unavailable.
 
 ### 2. Student Directory
-
-A dense, wide-format data table with:
-
-- **Columns**: Student Name, PRN, Division, Internship Count, Total Credits, Data Quality
-- **Search**: Filter by student name or PRN
-- **Filters**: Company, Semester (FY Sem I through B.Tech Sem VII), Review status
-- **Expandable Rows**: Click any row to reveal a nested sub-table showing all internship entries with semester, company, duration, dates, status badges (Completed / Ongoing / Needs Review), and calculated credits
-- **Sorting**: Click column headers to sort ascending/descending
-- **Pagination**: 20 rows per page with navigation
+- Dense, searchable student listing with multi-internship breakdown across 7 semesters (`FY Sem I` through `B.Tech Sem VII`).
+- **Merged Badge**: Highlights cross-semester split internships with tooltips identifying paired sibling semesters.
+- **Inline Faculty Review**: Actions column with inline `<ReviewPanel />` to approve, decline, or reclassify entries.
 
 ### 3. Company & Certification Analytics
-
-- **Horizontal Bar Chart**: Interactive Recharts visualization showing student count per company/program, with a toggle to show Top 15 or all entries
-- **Custom Tooltips**: Hover to see student count, internship count, and per-division breakdown
-- **Company Rankings Table**: Full ranked list with columns for Rank, Company Name, Students, Internships, and Division Breakdown (A/B/C/D)
-- **Data Quality Note**: Infobox explaining that company names are shown as-entered from the source sheet
+- Interactive Recharts bar chart showing company rankings with Top 15 / All toggle.
+- Automatically groups and classifies companies vs certifications based on keywords and faculty overrides.
+- Flags inconsistently classified company names across student entries.
 
 ### 4. Credit Analytics & Audit
-
-- **KPI Cards**: Total Credits Calculated, Average Credits per Student, Review-Related Credit Entries (with expandable reason breakdown)
-- **Credit Distribution Bar Chart**: Histogram showing how many students fall into each credit bucket
-- **Student Credit Audit Table**: Searchable table with columns for Student Name, PRN, Division, Internships, Calculated Credits, Sheet Reported Credits, and Discrepancy flag
-- **Discrepancy Filter**: Checkbox to show only students where calculated credits differ from the sheet-reported value
+- Credit bucket distribution histogram.
+- Audit table identifying discrepancies between post-override calculated credits and sheet-reported values.
+- **"Needs Review Only" Toggle**: Filter table to flagged unreviewed entries.
+- **Bulk Actions Bar**: One-click bulk approval (`Approve All Visible`) or rejection (`Decline All Visible`) scoped strictly to the active batch/division view.
+- Expandable student rows with per-internship review controls.
 
 ### 5. Reports & Export Center
-
-Three downloadable report types, each available in both **Excel** and **PDF** formats:
-
-| Report               | Format         | Description                                                    |
-| -------------------- | -------------- | -------------------------------------------------------------- |
-| Student List Report  | One row per internship | Name, PRN, Division, Semester, Company, Duration, Dates, Status, Credits |
-| Credit Summary Report| One row per student    | Name, PRN, Division, Internship Count, Calculated Credits, Sheet Reported, Discrepancy |
-| Company Report       | One row per company    | Company Name, Student Count, Internship Count, Div-A/B/C/D breakdown |
-
-All reports respect the currently selected batch and division filters. PDF reports include styled headers with batch/division metadata and generation timestamps.
+- Downloads styled **Excel (`.xlsx`)** and **PDF** documents for:
+  1. *Student List Report* (entry-level detail)
+  2. *Credit Summary Report* (student-wise audit totals using post-override credits)
+  3. *Company Participation Report* (company breakdown per division)
 
 ### 6. Settings & Batch Configuration
-
-- **Live Data Sync**: Manual cache-busting button to force a fresh Google Sheets API fetch (bypasses the 5-minute cache)
-- **Configured Batches Table**: Read-only registry showing all batch entries (e.g., 2023–2027) and their configuration status
-- **Data Quality & Health Reference**: Summary of entries needing review for the selected batch, with an expandable breakdown by reason category (unparseable duration, certification-style, unparseable dates)
+- Cache management with manual force-sync trigger (bypasses 5-min cache).
+- Batch registry status table and data quality health diagnostics.
 
 ---
 
 ## API Reference
 
-All endpoints are prefixed with `/api`.
+### Health & Config
+- `GET /api/health` — Backend server health status.
+- `GET /api/config/batches` — List of configured academic batches.
 
-### Health
+### Student & Analytics Data
+- `GET /api/students?batch=X&division=Y&refresh=true` — Enriched student records with semester details & override states.
+- `GET /api/analytics/overview?batch=X` — Overview KPIs & review breakdown.
+- `GET /api/analytics/companies?batch=X` — Company rankings & classification statistics.
+- `GET /api/analytics/credits?batch=X` — Credit audit data & student listing with internships.
 
-| Method | Endpoint        | Description          |
-| ------ | --------------- | -------------------- |
-| GET    | `/api/health`   | Server health check  |
-
-### Students
-
-| Method | Endpoint         | Query Params                         | Description                                    |
-| ------ | ---------------- | ------------------------------------ | ---------------------------------------------- |
-| GET    | `/api/students`  | `batch` (required), `division`, `refresh` | Returns enriched student data with internship details |
-
-### Analytics
-
-| Method | Endpoint                   | Query Params                         | Description                                              |
-| ------ | -------------------------- | ------------------------------------ | -------------------------------------------------------- |
-| GET    | `/api/analytics/overview`  | `batch` (required), `division`, `refresh` | Dashboard KPIs, review breakdown, division comparison    |
-| GET    | `/api/analytics/companies` | `batch` (required), `division`, `refresh` | Company participation data sorted by student count       |
-| GET    | `/api/analytics/credits`   | `batch` (required), `division`, `refresh` | Credit distribution, student audit list, review summary  |
-
-### Configuration
-
-| Method | Endpoint             | Description                              |
-| ------ | -------------------- | ---------------------------------------- |
-| GET    | `/api/config/batches`| Returns list of all configured batches   |
-
-### Query Parameters
-
-| Parameter  | Type   | Required | Description                                           |
-| ---------- | ------ | -------- | ----------------------------------------------------- |
-| `batch`    | string | Yes      | Batch identifier (e.g., `2023-2027`)                  |
-| `division` | string | No       | Division filter (e.g., `Div-A`, `Div-B`, `Div-C`, `Div-D`) |
-| `refresh`  | string | No       | Set to `"true"` to bypass the server-side cache       |
+### Faculty Reviews (Supabase Overrides)
+- `GET /api/reviews?batch=X&division=Y` — Fetch active review overrides.
+- `POST /api/reviews` — Upsert a single review override (`decision`, `classification`, `mergeDecision`, `overrideCredits`, `reviewedBy`, `note`).
+- `POST /api/reviews/bulk` — Apply bulk approval/decline to visible flagged entries in scope.
+- `DELETE /api/reviews/:batchId/:division/:prn/:semesterLabel` — Reset a review decision back to pending.
 
 ---
 
-## Credit Calculation Rules
+## Credit Calculation & Review Policy
 
-Credits are automatically calculated based on internship duration using the following department policy:
-
-| Duration (months) | Credits Awarded |
-| ------------------ | --------------- |
-| < 1                | 0               |
-| 1 – < 2            | 1               |
-| 2 – < 4            | 2               |
-| 4 – < 6            | 3               |
-| ≥ 6                | 4               |
-
-**Special cases:**
-- **Certification-style entries** (hours-based courses, not month-based placements) → `null` (requires manual review)
-- **Unparseable durations** → `null` (flagged for review)
-- **Zero or negative durations** → `null` (flagged for review)
-
-The credit rules are defined as a single source of truth in [`creditRules.ts`](backend/src/services/creditRules.ts).
-
----
-
-## Data Pipeline
-
-1. **Fetch** — The Sheets Service authenticates via a Google service account and uses `batchGet` to pull data from all 4 division tabs (Div-A through Div-D) in a single API call
-2. **Parse** — Raw spreadsheet rows are mapped to `StudentRecord` objects with 7 semester blocks (FY Sem I through B.Tech Sem VII), each containing internship name, dates, duration, and credits
-3. **Enrich** — The Student Enrichment Service processes each student record:
-   - Parses multi-format date strings (DD/MM/YYYY, MM-DD-YYYY, "Jan 2024", etc.)
-   - Converts freeform duration strings to months (e.g., "2 months", "45 days", "120 hours")
-   - Detects certification-style entries
-   - Calculates internship status (Completed / Ongoing / Not Started)
-   - Applies credit rules to derive per-internship credit values
-   - Flags entries needing manual review with specific reason codes
-4. **Cache** — Processed results are cached server-side with a 5-minute TTL to reduce API quota consumption
-5. **Serve** — REST endpoints aggregate and filter the enriched data for the frontend
+- **Standard Credit Policy**:
+  - `< 1 month` → 0 Credits
+  - `1 – < 2 months` → 1 Credit
+  - `2 – < 4 months` → 2 Credits
+  - `4 – < 6 months` → 3 Credits
+  - `≥ 6 months` → 4 Credits
+- **Certification Entries** (`hours-based` or `certification` classification) → Requires manual review / `null` auto-credits.
+- **Declined Entries** → Forced to `0` credits and excluded from total credit summation.
+- **Split Internships** → Continuous cross-semester internships default to single crediting (`MAX(duration)`). Faculty can set `reject_merge` to restore independent per-semester crediting to both halves.
 
 ---
 
 ## License
 
-This project is private and intended for internal academic department use.
+Private academic project. Developed for internal department analytics and auditing.

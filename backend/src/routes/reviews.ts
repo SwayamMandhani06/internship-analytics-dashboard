@@ -19,13 +19,9 @@ const router = Router();
 // ---------------------------------------------------------------------------
 
 const VALID_DECISIONS: Decision[] = ["approved", "declined", "pending"];
-const VALID_CLASSIFICATIONS: Classification[] = [
-  "internship",
-  "certification",
-  "other",
-  "invalid",
-];
-const VALID_MERGE_DECISIONS: MergeDecision[] = ["keep_separate", "merge", "primary"];
+// DB constraint on review_overrides.classification only allows these two values:
+const VALID_CLASSIFICATIONS: Classification[] = ["company", "certification"];
+const VALID_MERGE_DECISIONS: MergeDecision[] = ["confirm_merge", "reject_merge"];
 
 // ---------------------------------------------------------------------------
 // Shared error handler

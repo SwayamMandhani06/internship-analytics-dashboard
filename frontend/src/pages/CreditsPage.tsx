@@ -12,6 +12,9 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { OverridesWarningBanner } from "../components/OverridesWarningBanner";
+import { ReviewPanel } from "../components/ReviewPanel";
+import { BulkActionsBar } from "../components/BulkActionsBar";
+import type { EnrichedInternship } from "./StudentsPage";
 import {
   ResponsiveContainer,
   BarChart,
@@ -39,6 +42,7 @@ export interface StudentCreditItem {
   sheetReportedTotalCredits: string;
   discrepancy: boolean;
   needsReview: boolean;
+  internships: EnrichedInternship[];
 }
 
 export interface CreditsApiResponse {
@@ -68,6 +72,7 @@ export function CreditsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showReviewBreakdown, setShowReviewBreakdown] = useState<boolean>(false);
   const [discrepancyOnlyFilter, setDiscrepancyOnlyFilter] = useState<boolean>(false);
+  const [needsReviewFilter, setNeedsReviewFilter] = useState<boolean>(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -106,14 +111,21 @@ export function CreditsPage() {
       list = list.filter((item) => item.discrepancy);
     }
 
+    if (needsReviewFilter) {
+      list = list.filter(
+        (item) => item.needsReview || item.internships?.some((i) => i.needsReview)
+      );
+    }
+
     return list;
-  }, [data, discrepancyOnlyFilter]);
+  }, [data, discrepancyOnlyFilter, needsReviewFilter]);
 
   const totalReviewEntries = data
     ? data.reviewSummary.unparseable_duration +
       data.reviewSummary.unparseable_start_date +
       data.reviewSummary.unparseable_end_date +
-      data.reviewSummary.certification_style
+      data.reviewSummary.certification_style +
+      data.reviewSummary.possible_duplicate_split
     : 0;
 
   const tableColumns: Column<StudentCreditRow>[] = [
@@ -179,20 +191,29 @@ export function CreditsPage() {
     },
     {
       key: "discrepancy",
-      label: "Discrepancy",
+      label: "Audit Status",
       sortable: true,
       render: (row) => {
-        if (!row.discrepancy) return null; // Hidden entirely when calculated matches sheet
-
-        const tooltipText = `Calculated from internship data: ${row.totalCreditsCalculated}. Sheet shows: ${row.sheetReportedTotalCredits || "0"}.`;
-
+        const flaggedCount = row.internships?.filter((i) => i.needsReview).length || 0;
         return (
-          <div
-            title={tooltipText}
-            className="inline-flex cursor-help items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-          >
-            <AlertCircle className="h-3 w-3" />
-            <span>Audit Diff</span>
+          <div className="flex items-center gap-1.5">
+            {row.discrepancy && (
+              <span
+                title={`Calculated: ${row.totalCreditsCalculated}. Sheet shows: ${row.sheetReportedTotalCredits || "0"}.`}
+                className="inline-flex cursor-help items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+              >
+                <AlertCircle className="h-3 w-3" />
+                <span>Audit Diff</span>
+              </span>
+            )}
+            {flaggedCount > 0 && (
+              <span
+                title={`${flaggedCount} internship entry/entries need faculty review`}
+                className="inline-flex items-center gap-1 rounded border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:border-red-800 dark:bg-red-950/60 dark:text-red-300"
+              >
+                {flaggedCount} Needs Review
+              </span>
+            )}
           </div>
         );
       },
@@ -200,7 +221,17 @@ export function CreditsPage() {
   ];
 
   const filterControls = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={needsReviewFilter}
+          onChange={(e) => setNeedsReviewFilter(e.target.checked)}
+          className="rounded border-amber-300 text-amber-600 focus:ring-amber-500 dark:border-amber-700 dark:bg-amber-950"
+        />
+        <span>Needs Review Only</span>
+      </label>
+
       <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
         <input
           type="checkbox"
@@ -212,6 +243,48 @@ export function CreditsPage() {
       </label>
     </div>
   );
+
+  const renderExpandedRow = (row: StudentCreditRow) => {
+    if (!row.internships || row.internships.length === 0) {
+      return (
+        <div className="py-2 text-xs italic text-slate-500">
+          No internship entries found.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Faculty Review & Controls for {row.name} ({row.prn})
+        </p>
+        <div className="space-y-3">
+          {row.internships.map((internship, idx) => (
+            <div key={idx} className="space-y-1">
+              <div className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300">
+                <span className="rounded bg-slate-200 px-1.5 py-0.5 dark:bg-slate-800">
+                  {internship.semesterLabel}
+                </span>
+                <span className="font-semibold">{internship.company || "Unnamed Company"}</span>
+                {internship.needsReview && (
+                  <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
+                    Needs Review
+                  </span>
+                )}
+              </div>
+              <ReviewPanel
+                batchId={selectedBatch}
+                division={row.division}
+                prn={row.prn}
+                internship={internship}
+                onReviewComplete={fetchData}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -433,12 +506,26 @@ export function CreditsPage() {
               </span>
             </div>
 
+            {/* Bulk Actions Bar (visible when Needs Review filter is active) */}
+            {needsReviewFilter && (
+              <BulkActionsBar
+                batchId={selectedBatch}
+                division={selectedDivision}
+                visibleEntryCount={tableData.reduce(
+                  (sum, s) => sum + (s.internships?.filter((i) => i.needsReview).length || 0),
+                  0
+                )}
+                onComplete={fetchData}
+              />
+            )}
+
             <DataTable
               columns={tableColumns}
               data={tableData}
               searchable={true}
               searchPlaceholder="Search student name or PRN..."
               pageSize={20}
+              renderExpandedRow={renderExpandedRow}
               getRowKey={(row) => row.prn}
               extraHeaderControls={filterControls}
               initialSortKey="totalCreditsCalculated"

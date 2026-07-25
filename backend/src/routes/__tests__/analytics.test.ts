@@ -247,6 +247,7 @@ describe("Analytics Endpoints", () => {
           sheetReportedTotalCredits: "3",
           discrepancy: true, // 4 !== 3
           needsReview: false,
+          internships: mockEnrichedStudents[0].internships,
         },
         {
           name: "Bob Jones",
@@ -257,6 +258,7 @@ describe("Analytics Endpoints", () => {
           sheetReportedTotalCredits: "0",
           discrepancy: false, // 0 === 0
           needsReview: true,
+          internships: mockEnrichedStudents[1].internships,
         },
         {
           name: "Charlie Brown",
@@ -267,6 +269,7 @@ describe("Analytics Endpoints", () => {
           sheetReportedTotalCredits: "0",
           discrepancy: false,
           needsReview: false,
+          internships: mockEnrichedStudents[2].internships,
         },
       ]);
 

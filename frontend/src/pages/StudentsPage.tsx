@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, Fragment } from "react";
 import api from "../lib/api";
 import {
   AlertTriangle,
@@ -6,10 +6,24 @@ import {
   Building2,
   Calendar,
   Filter,
+  GitMerge,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { DataTable, type Column } from "../components/DataTable";
 import { OverridesWarningBanner } from "../components/OverridesWarningBanner";
+import { ReviewPanel } from "../components/ReviewPanel";
 import { useFilter, DIVISIONS } from "../context/FilterContext";
+
+export interface ReviewOverrideInfo {
+  decision: "approved" | "declined" | "pending" | null;
+  classification: "company" | "certification" | null;
+  mergeDecision: "confirm_merge" | "reject_merge" | null;
+  overrideCredits: number | null;
+  reviewedBy: string | null;
+  note: string | null;
+  reviewedAt: string | null;
+}
 
 export interface EnrichedInternship {
   semesterLabel: string;
@@ -21,10 +35,16 @@ export interface EnrichedInternship {
   durationRaw: string;
   durationMonths: number | null;
   isCertificationStyle: boolean;
+  classification: "company" | "certification";
   status: string;
   creditsCalculated: number | null;
   needsReview: boolean;
   reviewReasons: string[];
+  reviewOverride: ReviewOverrideInfo | null;
+  possibleSplitInternship: boolean;
+  splitMergeRole: "primary" | "sibling" | null;
+  splitSiblingLabel: string | null;
+  splitOriginalCredits: number | null;
 }
 
 export interface EnrichedStudent {
@@ -156,6 +176,7 @@ export function StudentsPage() {
   const [companyFilter, setCompanyFilter] = useState<string>("");
   const [semesterFilter, setSemesterFilter] = useState<string>("");
   const [reviewOnlyFilter, setReviewOnlyFilter] = useState<string>("ALL"); // "ALL" | "REVIEW"
+  const [activeReviewKey, setActiveReviewKey] = useState<string | null>(null);
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -334,35 +355,80 @@ export function StudentsPage() {
                 <th className="px-3 py-2 font-medium">End Date</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">Credits</th>
+                <th className="px-3 py-2 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-              {row.internships.map((item, idx) => (
-                <tr
-                  key={idx}
-                  className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50"
-                >
-                  <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">
-                    {item.semesterLabel}
-                  </td>
-                  <td className="px-3 py-2 font-semibold text-slate-900 dark:text-slate-100">
-                    {item.company || "\u2014"}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums text-slate-700 dark:text-slate-300">
-                    {item.durationMonths !== null
-                      ? `${item.durationMonths} Mo${item.durationMonths === 1 ? "" : "s"}`
-                      : item.durationRaw || "\u2014"}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">
-                    {formatDateDisplay(item.startDate, item.startDateRaw)}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">
-                    {formatDateDisplay(item.endDate, item.endDateRaw)}
-                  </td>
-                  <td className="px-3 py-2">{renderStatusBadge(item)}</td>
-                  <td className="px-3 py-2">{renderCreditsCell(item)}</td>
-                </tr>
-              ))}
+              {row.internships.map((item, idx) => {
+                const reviewKey = `${row.prn}-${item.semesterLabel}`;
+                const isReviewOpen = activeReviewKey === reviewKey;
+
+                return (
+                  <React.Fragment key={idx}>
+                    <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
+                      <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">
+                        {item.semesterLabel}
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-slate-900 dark:text-slate-100">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span>{item.company || "\u2014"}</span>
+                          {item.possibleSplitInternship && (
+                            <span
+                              title={`Cross-semester split internship \u2014 merged with ${item.splitSiblingLabel || "adjacent semester"}`}
+                              className="inline-flex cursor-help items-center gap-1 rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                            >
+                              <GitMerge className="h-3 w-3" />
+                              <span>Merged</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-slate-700 dark:text-slate-300">
+                        {item.durationMonths !== null
+                          ? `${item.durationMonths} Mo${item.durationMonths === 1 ? "" : "s"}`
+                          : item.durationRaw || "\u2014"}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">
+                        {formatDateDisplay(item.startDate, item.startDateRaw)}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-slate-600 dark:text-slate-400">
+                        {formatDateDisplay(item.endDate, item.endDateRaw)}
+                      </td>
+                      <td className="px-3 py-2">{renderStatusBadge(item)}</td>
+                      <td className="px-3 py-2">{renderCreditsCell(item)}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => setActiveReviewKey(isReviewOpen ? null : reviewKey)}
+                          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                          <span>
+                            {item.reviewOverride?.decision
+                              ? `Reviewed (${item.reviewOverride.decision})`
+                              : item.needsReview
+                              ? "Review Flag"
+                              : "Review"}
+                          </span>
+                          {isReviewOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </button>
+                      </td>
+                    </tr>
+                    {isReviewOpen && (
+                      <tr>
+                        <td colSpan={8} className="p-2.5 bg-slate-50/70 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
+                          <ReviewPanel
+                            batchId={selectedBatch}
+                            division={row.division}
+                            prn={row.prn}
+                            internship={item}
+                            onReviewComplete={fetchStudents}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>

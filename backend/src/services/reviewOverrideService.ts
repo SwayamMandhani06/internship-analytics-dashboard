@@ -5,9 +5,10 @@ import supabase from "./supabaseClient";
 // ---------------------------------------------------------------------------
 
 export type Decision = "approved" | "declined" | "pending";
-export type Classification = "internship" | "certification" | "other" | "invalid";
-/** reject_merge: treat adjacent same-name split pair as two independent internships */
-export type MergeDecision = "keep_separate" | "merge" | "primary" | "reject_merge";
+/** DB constraint only allows "company" or "certification" */
+export type Classification = "company" | "certification";
+/** confirm_merge: explicitly confirm cross-semester split pair as single internship; reject_merge: treat as two separate internships */
+export type MergeDecision = "confirm_merge" | "reject_merge";
 
 export interface ReviewOverride {
   id?: number;
