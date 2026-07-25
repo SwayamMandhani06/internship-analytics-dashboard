@@ -11,6 +11,7 @@ import {
   Filter,
   AlertCircle,
 } from "lucide-react";
+import { OverridesWarningBanner } from "../components/OverridesWarningBanner";
 import {
   ResponsiveContainer,
   BarChart,
@@ -41,6 +42,7 @@ export interface StudentCreditItem {
 }
 
 export interface CreditsApiResponse {
+  overridesApplied: boolean;
   totalCreditsCalculated: number;
   averageCreditsPerStudent: number;
   distribution: CreditDistributionItem[];
@@ -50,6 +52,7 @@ export interface CreditsApiResponse {
     unparseable_start_date: number;
     unparseable_end_date: number;
     certification_style: number;
+    possible_duplicate_split: number;
   };
 }
 
@@ -60,6 +63,7 @@ export interface StudentCreditRow extends StudentCreditItem, Record<string, unkn
 export function CreditsPage() {
   const { selectedBatch, selectedDivision, setSelectedDivision } = useFilter();
   const [data, setData] = useState<CreditsApiResponse | null>(null);
+  const [overridesApplied, setOverridesApplied] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showReviewBreakdown, setShowReviewBreakdown] = useState<boolean>(false);
@@ -75,6 +79,7 @@ export function CreditsPage() {
       }
       const res = await api.get<CreditsApiResponse>("/api/analytics/credits", { params });
       setData(res.data);
+      setOverridesApplied(res.data.overridesApplied);
     } catch (err: any) {
       console.error("[CreditsPage] Error fetching credit analytics:", err);
       const msg =
@@ -263,6 +268,9 @@ export function CreditsPage() {
           </div>
         </div>
       )}
+
+      {/* Supabase override unavailability banner */}
+      <OverridesWarningBanner overridesApplied={overridesApplied} />
 
       {/* Loading Skeleton */}
       {loading ? (

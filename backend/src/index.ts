@@ -1,9 +1,15 @@
+// IMPORTANT: dotenv must be loaded via require() BEFORE any other imports.
+// TypeScript `import` statements are hoisted and resolved before any inline
+// code runs, so `import dotenv … dotenv.config()` is always too late —
+// supabaseClient.ts (imported transitively through registerRoutes) would read
+// process.env before .env has been applied.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+require("dotenv").config();
+
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { registerRoutes } from "./routes";
 
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;

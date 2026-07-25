@@ -16,9 +16,11 @@ import {
   Filter,
 } from "lucide-react";
 import { KPICard } from "../components/KPICard";
+import { OverridesWarningBanner } from "../components/OverridesWarningBanner";
 import { useFilter, DIVISIONS } from "../context/FilterContext";
 
 export interface OverviewResponse {
+  overridesApplied: boolean;
   totalStudents: number;
   studentsWithAtLeastOneInternship: number;
   studentsWithNoInternship: number;
@@ -32,6 +34,7 @@ export interface OverviewResponse {
     unparseable_start_date: number;
     unparseable_end_date: number;
     certification_style: number;
+    possible_duplicate_split: number;
   };
   divisionBreakdown: Array<{
     division: string;
@@ -127,6 +130,9 @@ export function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Supabase override unavailability banner */}
+      {data && <OverridesWarningBanner overridesApplied={data.overridesApplied} />}
 
       {/* Loading Skeleton */}
       {loading ? (

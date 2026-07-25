@@ -17,6 +17,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { DataTable, type Column } from "../components/DataTable";
+import { OverridesWarningBanner } from "../components/OverridesWarningBanner";
 import { useFilter, DIVISIONS } from "../context/FilterContext";
 
 /** Max characters for Y-axis labels before truncating with ellipsis */
@@ -44,6 +45,11 @@ export interface CompanyItem {
   };
 }
 
+export interface CompaniesApiResponse {
+  overridesApplied: boolean;
+  companies: CompanyItem[];
+}
+
 export interface CompanyTableRow extends CompanyItem, Record<string, unknown> {
   rank: number;
 }
@@ -51,6 +57,7 @@ export interface CompanyTableRow extends CompanyItem, Record<string, unknown> {
 export function CompaniesPage() {
   const { selectedBatch, selectedDivision, setSelectedDivision } = useFilter();
   const [data, setData] = useState<CompanyItem[]>([]);
+  const [overridesApplied, setOverridesApplied] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showAllChart, setShowAllChart] = useState<boolean>(false);
@@ -63,8 +70,9 @@ export function CompaniesPage() {
       if (selectedDivision) {
         params.division = selectedDivision;
       }
-      const res = await api.get<CompanyItem[]>("/api/analytics/companies", { params });
-      setData(res.data);
+      const res = await api.get<CompaniesApiResponse>("/api/analytics/companies", { params });
+      setData(res.data.companies);
+      setOverridesApplied(res.data.overridesApplied);
     } catch (err: any) {
       console.error("[CompaniesPage] Error fetching companies:", err);
       const msg =
@@ -188,6 +196,9 @@ export function CompaniesPage() {
           </select>
         </div>
       </div>
+
+      {/* Supabase override unavailability banner */}
+      <OverridesWarningBanner overridesApplied={overridesApplied} />
 
       {/* Data Quality Helper Note */}
       <div className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-100/70 p-3.5 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">

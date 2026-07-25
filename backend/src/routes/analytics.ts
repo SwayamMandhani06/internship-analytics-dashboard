@@ -66,7 +66,8 @@ router.get("/analytics/overview", async (req: Request, res: Response, next: Next
     const refresh = req.query.refresh === "true";
 
     // Always fetch all students in the batch first for division comparison breakdown
-    const allBatchStudents = await getEnrichedStudents(batchId, undefined, refresh);
+    const { students: allBatchStudents, overridesApplied } =
+      await getEnrichedStudents(batchId, undefined, refresh);
 
     // Filter students for top-level stats if division is specified
     const filteredStudents = division
@@ -109,6 +110,7 @@ router.get("/analytics/overview", async (req: Request, res: Response, next: Next
       unparseable_start_date: 0,
       unparseable_end_date: 0,
       certification_style: 0,
+      possible_duplicate_split: 0,
     };
 
     filteredStudents.forEach((s) => {
@@ -141,6 +143,7 @@ router.get("/analytics/overview", async (req: Request, res: Response, next: Next
     });
 
     res.json({
+      overridesApplied,
       totalStudents,
       studentsWithAtLeastOneInternship,
       studentsWithNoInternship,
@@ -168,7 +171,8 @@ router.get("/analytics/companies", async (req: Request, res: Response, next: Nex
     const { batchId, division } = params;
     const refresh = req.query.refresh === "true";
 
-    const students = await getEnrichedStudents(batchId, division, refresh);
+    const { students, overridesApplied } =
+      await getEnrichedStudents(batchId, division, refresh);
 
     // Grouping structure to aggregate details by normalized company name
     // NOTE: This list conflates real employer names with certification/program names
@@ -180,6 +184,8 @@ router.get("/analytics/companies", async (req: Request, res: Response, next: Nex
         originalName: string;
         studentPrns: Set<string>;
         internshipCount: number;
+        companyClassificationCount: number;
+        certificationClassificationCount: number;
         divisionPrns: Record<string, Set<string>>;
       }
     >();
@@ -197,6 +203,8 @@ router.get("/analytics/companies", async (req: Request, res: Response, next: Nex
             originalName: rawCompany,
             studentPrns: new Set<string>(),
             internshipCount: 0,
+            companyClassificationCount: 0,
+            certificationClassificationCount: 0,
             divisionPrns: {
               "Div-A": new Set<string>(),
               "Div-B": new Set<string>(),
@@ -209,23 +217,39 @@ router.get("/analytics/companies", async (req: Request, res: Response, next: Nex
 
         group.studentPrns.add(student.prn);
         group.internshipCount++;
+        if (internship.classification === "certification") {
+          group.certificationClassificationCount++;
+        } else {
+          group.companyClassificationCount++;
+        }
         if (group.divisionPrns[student.division]) {
           group.divisionPrns[student.division].add(student.prn);
         }
       });
     });
 
-    const result = Array.from(companyGroups.values()).map((group) => ({
-      company: group.originalName,
-      studentCount: group.studentPrns.size,
-      internshipCount: group.internshipCount,
-      divisionBreakdown: {
-        "Div-A": group.divisionPrns["Div-A"].size,
-        "Div-B": group.divisionPrns["Div-B"].size,
-        "Div-C": group.divisionPrns["Div-C"].size,
-        "Div-D": group.divisionPrns["Div-D"].size,
-      },
-    }));
+    const result = Array.from(companyGroups.values()).map((group) => {
+      const type: "company" | "certification" =
+        group.certificationClassificationCount > group.companyClassificationCount
+          ? "certification"
+          : "company";
+      const isInconsistentlyClassified =
+        group.companyClassificationCount > 0 && group.certificationClassificationCount > 0;
+
+      return {
+        company: group.originalName,
+        type,
+        isInconsistentlyClassified,
+        studentCount: group.studentPrns.size,
+        internshipCount: group.internshipCount,
+        divisionBreakdown: {
+          "Div-A": group.divisionPrns["Div-A"].size,
+          "Div-B": group.divisionPrns["Div-B"].size,
+          "Div-C": group.divisionPrns["Div-C"].size,
+          "Div-D": group.divisionPrns["Div-D"].size,
+        },
+      };
+    });
 
     // Sort descending by studentCount, then internshipCount, then company name
     result.sort((a, b) => {
@@ -238,7 +262,7 @@ router.get("/analytics/companies", async (req: Request, res: Response, next: Nex
       return a.company.localeCompare(b.company);
     });
 
-    res.json(result);
+    res.json({ overridesApplied, companies: result });
   } catch (err) {
     handleRouteError(err, res, next);
   }
@@ -255,7 +279,8 @@ router.get("/analytics/credits", async (req: Request, res: Response, next: NextF
     const { batchId, division } = params;
     const refresh = req.query.refresh === "true";
 
-    const students = await getEnrichedStudents(batchId, division, refresh);
+    const { students, overridesApplied } =
+      await getEnrichedStudents(batchId, division, refresh);
 
     const totalStudents = students.length;
     const totalCreditsCalculated = students.reduce(
@@ -303,6 +328,7 @@ router.get("/analytics/credits", async (req: Request, res: Response, next: NextF
       unparseable_start_date: 0,
       unparseable_end_date: 0,
       certification_style: 0,
+      possible_duplicate_split: 0,
     };
 
     students.forEach((s) => {
@@ -318,6 +344,7 @@ router.get("/analytics/credits", async (req: Request, res: Response, next: NextF
     });
 
     res.json({
+      overridesApplied,
       totalCreditsCalculated,
       averageCreditsPerStudent,
       distribution,

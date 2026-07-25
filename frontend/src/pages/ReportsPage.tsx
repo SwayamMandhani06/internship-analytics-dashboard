@@ -13,6 +13,7 @@ import {
   Award,
   Building2,
 } from "lucide-react";
+import { OverridesWarningBanner } from "../components/OverridesWarningBanner";
 import { useFilter, DIVISIONS } from "../context/FilterContext";
 
 export interface EnrichedInternship {
@@ -42,6 +43,7 @@ export interface EnrichedStudent {
 }
 
 export interface StudentsApiResponse {
+  overridesApplied: boolean;
   count: number;
   totalInternshipEntries: number;
   needsReviewCount: number;
@@ -52,6 +54,7 @@ export interface StudentsApiResponse {
 export function ReportsPage() {
   const { selectedBatch, selectedDivision, setSelectedDivision } = useFilter();
   const [students, setStudents] = useState<EnrichedStudent[]>([]);
+  const [overridesApplied, setOverridesApplied] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +68,7 @@ export function ReportsPage() {
       }
       const res = await api.get<StudentsApiResponse>("/api/students", { params });
       setStudents(res.data.data);
+      setOverridesApplied(res.data.overridesApplied);
     } catch (err: any) {
       console.error("[ReportsPage] Error fetching students:", err);
       const msg =
@@ -418,6 +422,9 @@ export function ReportsPage() {
           </div>
         </div>
       )}
+
+      {/* Supabase override unavailability banner */}
+      <OverridesWarningBanner overridesApplied={overridesApplied} />
 
       {/* Loading Skeleton */}
       {loading ? (

@@ -31,10 +31,16 @@ const mockEnrichedStudents = [
         durationRaw: "2 Month",
         durationMonths: 2,
         isCertificationStyle: false,
+        classification: "company",
         status: "Completed",
         creditsCalculated: 2,
         needsReview: false,
         reviewReasons: [],
+        reviewOverride: null,
+        possibleSplitInternship: false,
+        splitMergeRole: null,
+        splitSiblingLabel: null,
+        splitOriginalCredits: null,
       },
       {
         semesterLabel: "FY Sem II",
@@ -46,10 +52,16 @@ const mockEnrichedStudents = [
         durationRaw: "2 Month",
         durationMonths: 2,
         isCertificationStyle: false,
+        classification: "company",
         status: "Completed",
         creditsCalculated: 2,
         needsReview: false,
         reviewReasons: [],
+        reviewOverride: null,
+        possibleSplitInternship: false,
+        splitMergeRole: null,
+        splitSiblingLabel: null,
+        splitOriginalCredits: null,
       },
     ],
   },
@@ -71,10 +83,16 @@ const mockEnrichedStudents = [
         durationRaw: "135.5 hours",
         durationMonths: 0.19,
         isCertificationStyle: true,
+        classification: "certification",
         status: "Ongoing",
         creditsCalculated: null,
         needsReview: true,
         reviewReasons: ["certification_style"],
+        reviewOverride: null,
+        possibleSplitInternship: false,
+        splitMergeRole: null,
+        splitSiblingLabel: null,
+        splitOriginalCredits: null,
       },
     ],
   },
@@ -88,6 +106,12 @@ const mockEnrichedStudents = [
     internships: [],
   },
 ];
+
+/** Wraps the mock student array in the EnrichedStudentsResult envelope. */
+const mockResult = (overridesApplied = true) => ({
+  students: mockEnrichedStudents,
+  overridesApplied,
+});
 
 describe("Analytics Endpoints", () => {
   let app: express.Express;
@@ -116,11 +140,12 @@ describe("Analytics Endpoints", () => {
     });
 
     it("returns correct overview aggregations for the whole batch", async () => {
-      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockEnrichedStudents as any);
+      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockResult() as any);
 
       const res = await request(app).get("/api/analytics/overview?batch=2023-2027");
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
+        overridesApplied: true,
         totalStudents: 3,
         studentsWithAtLeastOneInternship: 2,
         studentsWithNoInternship: 1,
@@ -134,6 +159,7 @@ describe("Analytics Endpoints", () => {
           unparseable_start_date: 0,
           unparseable_end_date: 0,
           certification_style: 1,
+          possible_duplicate_split: 0,
         },
         divisionBreakdown: [
           { division: "Div-A", studentCount: 2, totalCreditsCalculated: 4, averageCreditsPerStudent: 2 },
@@ -144,8 +170,16 @@ describe("Analytics Endpoints", () => {
       });
     });
 
+    it("surfaces overridesApplied: false when Supabase fallback is active", async () => {
+      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockResult(false) as any);
+
+      const res = await request(app).get("/api/analytics/overview?batch=2023-2027");
+      expect(res.status).toBe(200);
+      expect(res.body.overridesApplied).toBe(false);
+    });
+
     it("applies division filtering to stats but keeps full divisionBreakdown comparison", async () => {
-      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockEnrichedStudents as any);
+      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockResult() as any);
 
       const res = await request(app).get("/api/analytics/overview?batch=2023-2027&division=Div-A");
       expect(res.status).toBe(200);
@@ -164,19 +198,22 @@ describe("Analytics Endpoints", () => {
   // GET /api/analytics/companies
   // -------------------------------------------------------------------------
   describe("GET /api/analytics/companies", () => {
-    it("returns array of companies sorted descending by student count", async () => {
-      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockEnrichedStudents as any);
+    it("returns companies array nested under the overridesApplied envelope", async () => {
+      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockResult() as any);
 
       const res = await request(app).get("/api/analytics/companies?batch=2023-2027");
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(3);
+      expect(res.body.overridesApplied).toBe(true);
+      expect(Array.isArray(res.body.companies)).toBe(true);
+      expect(res.body.companies.length).toBe(3);
 
       // Verify the sorting / shape
-      expect(res.body[0].company).toBe("Google");
-      expect(res.body[0].studentCount).toBe(1);
-      expect(res.body[0].internshipCount).toBe(1);
-      expect(res.body[0].divisionBreakdown).toEqual({ "Div-A": 1, "Div-B": 0, "Div-C": 0, "Div-D": 0 });
+      expect(res.body.companies[0].company).toBe("Google");
+      expect(res.body.companies[0].type).toBe("company");
+      expect(res.body.companies[0].isInconsistentlyClassified).toBe(false);
+      expect(res.body.companies[0].studentCount).toBe(1);
+      expect(res.body.companies[0].internshipCount).toBe(1);
+      expect(res.body.companies[0].divisionBreakdown).toEqual({ "Div-A": 1, "Div-B": 0, "Div-C": 0, "Div-D": 0 });
     });
   });
 
@@ -185,10 +222,11 @@ describe("Analytics Endpoints", () => {
   // -------------------------------------------------------------------------
   describe("GET /api/analytics/credits", () => {
     it("returns credit analytics and distribution", async () => {
-      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockEnrichedStudents as any);
+      vi.mocked(enrichmentService.getEnrichedStudents).mockResolvedValue(mockResult() as any);
 
       const res = await request(app).get("/api/analytics/credits?batch=2023-2027");
       expect(res.status).toBe(200);
+      expect(res.body.overridesApplied).toBe(true);
       expect(res.body.totalCreditsCalculated).toBe(4);
       expect(res.body.averageCreditsPerStudent).toBe(1.33);
 
@@ -237,6 +275,7 @@ describe("Analytics Endpoints", () => {
         unparseable_start_date: 0,
         unparseable_end_date: 0,
         certification_style: 1,
+        possible_duplicate_split: 0,
       });
     });
 
@@ -251,4 +290,3 @@ describe("Analytics Endpoints", () => {
     });
   });
 });
-

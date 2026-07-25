@@ -34,7 +34,8 @@ router.get("/students", async (req: Request, res: Response) => {
     }
 
     // Fetch enriched data (leveraging cache inside Sheets API)
-    const enrichedStudents = await getEnrichedStudents(batchId, division, refresh);
+    const { students: enrichedStudents, overridesApplied } =
+      await getEnrichedStudents(batchId, division, refresh);
 
     // Compute summary stats
     const totalInternships = enrichedStudents.reduce(
@@ -54,6 +55,7 @@ router.get("/students", async (req: Request, res: Response) => {
     );
 
     res.json({
+      overridesApplied,
       count: enrichedStudents.length,
       totalInternshipEntries: totalInternships,
       needsReviewCount: reviewEntries.length,

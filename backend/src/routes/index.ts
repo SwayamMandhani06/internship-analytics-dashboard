@@ -3,10 +3,12 @@ import healthRouter from "./health";
 import studentsRouter from "./students";
 import analyticsRouter from "./analytics";
 import configRouter from "./config";
+import reviewsRouter from "./reviews";
 
 export function registerRoutes(app: Express): void {
   app.use("/api", healthRouter);
   app.use("/api", studentsRouter);
   app.use("/api", analyticsRouter);
   app.use("/api", configRouter);
+  app.use("/api", reviewsRouter);
 }
