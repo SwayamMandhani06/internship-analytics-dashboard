@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import {
   RotateCw,
   Info,
@@ -48,7 +48,7 @@ export function SettingsPage() {
     setBatchesLoading(true);
     setBatchesError(null);
     try {
-      const res = await axios.get<ConfiguredBatch[]>("/api/config/batches");
+      const res = await api.get<ConfiguredBatch[]>("/api/config/batches");
       setBatches(res.data);
     } catch (err: any) {
       console.error("[SettingsPage] Error fetching batches:", err);
@@ -61,7 +61,7 @@ export function SettingsPage() {
   const fetchOverview = async () => {
     setOverviewLoading(true);
     try {
-      const res = await axios.get<OverviewData>("/api/analytics/overview", {
+      const res = await api.get<OverviewData>("/api/analytics/overview", {
         params: { batch: selectedBatch },
       });
       setOverview(res.data);
@@ -81,7 +81,7 @@ export function SettingsPage() {
     setRefreshing(true);
     setToastMessage(null);
     try {
-      await axios.get("/api/students", {
+      await api.get("/api/students", {
         params: { batch: selectedBatch, refresh: "true" },
       });
       const nowStr = new Date().toLocaleTimeString();

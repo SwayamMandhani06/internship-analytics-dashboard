@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import {
   Award,
   BarChart2,
@@ -73,7 +73,7 @@ export function CreditsPage() {
       if (selectedDivision) {
         params.division = selectedDivision;
       }
-      const res = await axios.get<CreditsApiResponse>("/api/analytics/credits", { params });
+      const res = await api.get<CreditsApiResponse>("/api/analytics/credits", { params });
       setData(res.data);
     } catch (err: any) {
       console.error("[CreditsPage] Error fetching credit analytics:", err);

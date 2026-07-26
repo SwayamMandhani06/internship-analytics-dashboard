@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import {
   AlertTriangle,
   RotateCw,
@@ -162,7 +162,7 @@ export function StudentsPage() {
       if (selectedDivision) {
         params.division = selectedDivision;
       }
-      const res = await axios.get<StudentsApiResponse>("/api/students", { params });
+      const res = await api.get<StudentsApiResponse>("/api/students", { params });
       setStudents(res.data.data);
     } catch (err: any) {
       console.error("[StudentsPage] Error fetching students:", err);

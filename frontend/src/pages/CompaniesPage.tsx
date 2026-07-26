@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import {
   Info,
   AlertTriangle,
@@ -63,7 +63,7 @@ export function CompaniesPage() {
       if (selectedDivision) {
         params.division = selectedDivision;
       }
-      const res = await axios.get<CompanyItem[]>("/api/analytics/companies", { params });
+      const res = await api.get<CompanyItem[]>("/api/analytics/companies", { params });
       setData(res.data);
     } catch (err: any) {
       console.error("[CompaniesPage] Error fetching companies:", err);

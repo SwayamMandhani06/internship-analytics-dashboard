@@ -84,25 +84,47 @@ let sheetsClient: ReturnType<typeof google.sheets> | null = null;
 async function getSheetsClient() {
   if (sheetsClient) return sheetsClient;
 
-  const keyFilePath = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH
-    ? path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH)
-    : path.resolve(__dirname, "../../credentials/service-account.json");
-
   const offset = await detectClockOffset();
   const absDrift = Math.abs(offset);
 
+  // ---------------------------------------------------------------------------
+  // Resolve credentials: prefer GOOGLE_SERVICE_ACCOUNT_KEY (inline JSON, prod)
+  // then fall back to GOOGLE_SERVICE_ACCOUNT_KEY_PATH / local file (dev)
+  // ---------------------------------------------------------------------------
+  let parsedCred: { client_email: string; private_key: string } | null = null;
+
+  if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    parsedCred = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
+  }
+
   // If drift is small (<30s), use the standard GoogleAuth path
   if (absDrift < 30_000) {
-    const auth = new google.auth.GoogleAuth({
-      keyFile: keyFilePath,
+    const authOptions: Record<string, unknown> = {
       scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-    });
+    };
+
+    if (parsedCred) {
+      authOptions.credentials = parsedCred;
+    } else {
+      authOptions.keyFile = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH
+        ? path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH)
+        : path.resolve(__dirname, "../../credentials/service-account.json");
+    }
+
+    const auth = new google.auth.GoogleAuth(authOptions as any);
     sheetsClient = google.sheets({ version: "v4", auth });
     return sheetsClient;
   }
 
   // Large drift: build a JWT client with corrected iat/exp
-  const cred = JSON.parse(fs.readFileSync(keyFilePath, "utf8"));
+  const cred = parsedCred ?? JSON.parse(
+    fs.readFileSync(
+      process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH
+        ? path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH)
+        : path.resolve(__dirname, "../../credentials/service-account.json"),
+      "utf8"
+    )
+  );
   const correctedNow = Math.floor((Date.now() - offset) / 1000);
 
   const jwtClient = new JWT({

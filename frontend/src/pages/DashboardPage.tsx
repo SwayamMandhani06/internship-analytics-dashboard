@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import {
   Users,
   UserCheck,
@@ -56,7 +56,7 @@ export function DashboardPage() {
       if (selectedDivision) {
         params.division = selectedDivision;
       }
-      const res = await axios.get<OverviewResponse>("/api/analytics/overview", { params });
+      const res = await api.get<OverviewResponse>("/api/analytics/overview", { params });
       setData(res.data);
     } catch (err: any) {
       console.error("[DashboardPage] Error fetching overview data:", err);

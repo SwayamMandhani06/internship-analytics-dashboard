@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../lib/api";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -63,7 +63,7 @@ export function ReportsPage() {
       if (selectedDivision) {
         params.division = selectedDivision;
       }
-      const res = await axios.get<StudentsApiResponse>("/api/students", { params });
+      const res = await api.get<StudentsApiResponse>("/api/students", { params });
       setStudents(res.data.data);
     } catch (err: any) {
       console.error("[ReportsPage] Error fetching students:", err);
