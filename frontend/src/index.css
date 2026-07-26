@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ------------------------------------------------------------------ */
+/* Design System Theme Tokens (Tailwind CSS v4 CSS-first config)      */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  /* Font family */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Primary accent - used sparingly for active states and CTAs */
+  --color-primary-50: oklch(0.97 0.01 264);
+  --color-primary-100: oklch(0.94 0.03 264);
+  --color-primary-200: oklch(0.87 0.06 264);
+  --color-primary-300: oklch(0.78 0.10 264);
+  --color-primary-400: oklch(0.68 0.15 264);
+  --color-primary-500: oklch(0.59 0.19 264);
+  --color-primary-600: oklch(0.51 0.22 264);
+  --color-primary-700: oklch(0.46 0.20 264);
+  --color-primary-800: oklch(0.40 0.16 264);
+  --color-primary-900: oklch(0.36 0.13 264);
+  --color-primary-950: oklch(0.27 0.10 264);
+
+  /* Semantic colors - data contexts only */
+  --color-success-500: oklch(0.72 0.15 160);
+  --color-success-600: oklch(0.60 0.15 160);
+  --color-warning-500: oklch(0.77 0.15 75);
+  --color-warning-600: oklch(0.67 0.15 75);
+  --color-danger-500: oklch(0.64 0.20 25);
+  --color-danger-600: oklch(0.55 0.20 25);
+
+  /* Border radius */
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Animations */
+  --animate-fade-in: fade-in 200ms ease-in-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Base styles                                                         */
+/* ------------------------------------------------------------------ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-slate-50);
+  color: var(--color-slate-900);
+}
+
+/* Dark mode body */
+.dark body {
+  background-color: var(--color-slate-950);
+  color: var(--color-slate-100);
+}
+
+/* Tabular numbers for data display */
+.tabular-nums {
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+/* Transition utility - 150ms ease-in-out for hover/focus only */
+.transition-default {
+  transition-property: color, background-color, border-color, opacity, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in-out;
+}
+
+/* Scrollbar styling for sidebar/content */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-slate-300);
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-slate-700);
+}

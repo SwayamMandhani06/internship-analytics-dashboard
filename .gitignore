@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+**/node_modules/
+.pnpm-store/
+.yarn/cache/
+.yarn/unplugged/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+**/dist/
+*.local
+*.tsbuildinfo
+
+# Environment variables & secrets (never commit)
+.env
+.env.local
+.env.*.local
+*.env
+backend/.env
+frontend/.env
+
+# Google service account & API credentials
+backend/credentials/
+credentials/
+**/credentials/
+**/service-account*.json
+*.pem
+*.key
+
+# Logs
+logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor & IDE files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.classpath
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Cache, Testing & Temporary files
+.cache/
+.vite/
+.eslintcache
+.turbo/
+coverage/
+.nyc_output/
+*.tmp
+*.temp
+*.bak
